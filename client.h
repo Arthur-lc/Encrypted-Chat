@@ -20,6 +20,7 @@ private:
     std::string userName;
 
     void receiveMessages();
+    void sendMessage(const std::string& msg);
 
 public:
     Client(const char *serverIp, int port, UIManager& uiManager);

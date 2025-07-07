@@ -1,134 +1,132 @@
-#include <iostream>
-#include <string>
-#include <thread>
-#include <atomic>
+#include "client.h"
 #include <cstring>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 
-class Client
+Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), connected(false)
 {
-private:
-    int clientSocket;
-    sockaddr_in serverAddress;
-    std::atomic<bool> connected;
-    std::thread receiverThread;
-
-    void receiveMessages()
+    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSocket < 0)
     {
-        char buffer[4096];
-        while (connected)
+        uiManager.drawMessage("System", "Error creating socket");
+        return;
+    }
+
+    serverAddress.sin_family = AF_INET;
+    serverAddress.sin_port = htons(port);
+    if (inet_pton(AF_INET, serverIp, &serverAddress.sin_addr) <= 0)
+    {
+        uiManager.drawMessage("System", "Invalid address or address not supported");
+        close(clientSocket);
+        clientSocket = -1;
+    }
+}
+
+Client::~Client()
+{
+    stop();
+}
+
+void Client::stop()
+{
+    if (connected)
+    {
+        connected = false;
+    }
+    if (receiverThread.joinable())
+    {
+        receiverThread.join();
+    }
+    if (clientSocket >= 0)
+    {
+        close(clientSocket);
+    }
+}
+
+bool Client::connectToServer()
+{
+    if (clientSocket < 0)
+        return false;
+
+    if (connect(clientSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
+    {
+        uiManager.drawMessage("System", "Connection Failed");
+        return false;
+    }
+
+    uiManager.updateStatus("Enter your name: ");
+    userName = uiManager.getUserInput();
+    uiManager.clearInput();
+
+    if (send(clientSocket, userName.c_str(), userName.size(), 0) < 0)
+    {
+        uiManager.drawMessage("System", "Failed to send user name");
+        return false;
+    }
+
+    connected = true;
+    uiManager.updateStatus("Connected as: " + userName);
+    return true;
+}
+
+void Client::run()
+{
+    if (!connected)
+        return;
+
+    receiverThread = std::thread(&Client::receiveMessages, this);
+
+    while (connected)
+    {
+        std::string msg = uiManager.getUserInput();
+        sendMessage(msg);
+
+        if (!connected)
+            break;
+    }
+    stop();
+}
+
+void Client::receiveMessages()
+{
+    char buffer[4096];
+    while (connected)
+    {
+        memset(buffer, 0, sizeof(buffer));
+        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesReceived <= 0)
         {
-            memset(buffer, 0, sizeof(buffer));
-            int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-            if (bytesReceived <= 0)
+            if (connected)
             {
-                if (connected)
-                {
-                    std::cout << "\n[Server disconnected]" << std::endl;
-                    connected = false;
-                }
-                break;
+                uiManager.drawMessage("System", "Server disconnected");
+                connected = false;
+                uiManager.updateStatus("Disconnected. Press any key to exit.");
             }
-            std::cout << "\n"
-                      << buffer << std::endl
-                      << "> " << std::flush;
+            break;
+        }
+        // Simple parsing of "sender:message"
+        std::string received(buffer);
+        size_t separator_pos = received.find(':');
+        if (separator_pos != std::string::npos)
+        {
+            std::string sender = received.substr(0, separator_pos);
+            std::string message = received.substr(separator_pos + 1);
+            uiManager.drawMessage(sender, message);
+        }
+        else
+        {
+            uiManager.drawMessage("Server", received);
         }
     }
+}
 
-public:
-    Client(const char *serverIp, int port) : connected(false)
+void Client::sendMessage(const std::string& msg)
+{
+    if (!msg.empty())
     {
-        // Create socket
-        clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-        if (clientSocket < 0)
+        uiManager.drawMessage("You", msg);
+        if (send(clientSocket, msg.c_str(), msg.size(), 0) < 0)
         {
-            std::cerr << "Error creating socket" << std::endl;
-            return;
-        }
-
-        // Setup server address
-        serverAddress.sin_family = AF_INET;
-        serverAddress.sin_port = htons(port);
-        if (inet_pton(AF_INET, serverIp, &serverAddress.sin_addr) <= 0)
-        {
-            std::cerr << "Invalid address/ Address not supported" << std::endl;
-            close(clientSocket);
-            clientSocket = -1;
-            return;
-        }
-    }
-
-    ~Client()
-    {
-        if (connected)
-        {
-            connected = false; // Signal receiver thread to stop
-        }
-        if (receiverThread.joinable())
-        {
-            receiverThread.join();
-        }
-        if (clientSocket >= 0)
-        {
-            close(clientSocket);
-        }
-    }
-
-    void run()
-    {
-        if (clientSocket < 0)
-        {
-            return; // Socket was not created successfully
-        }
-
-        // Connect to the server
-        if (connect(clientSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
-        {
-            std::cerr << "Connection Failed" << std::endl;
-            return;
-        }
-
-        std::string name;
-        std::cout << "Seu nome: ";
-        std::cin >> name;
-
-        if (send(clientSocket, name.c_str(), name.size(), 0) < 0)
-        {
-            std::cerr << "Failed to establish connection" << std::endl;
+            uiManager.drawMessage("System", "Failed to send message");
             connected = false;
-            return;
         }
-
-        std::cout << "Connected to the server!" << std::endl;
-        connected = true;
-
-        // Start a thread to receive messages
-        receiverThread = std::thread(&Client::receiveMessages, this);
-
-        // Main loop to send messages
-        std::string msg;
-        std::cout << "> " << std::flush;
-        while (connected)
-        {
-            std::getline(std::cin, msg);
-            if (!connected)
-            {
-                break;
-            }
-            if (!msg.empty())
-            {
-                if (send(clientSocket, msg.c_str(), msg.size(), 0) < 0)
-                {
-                    std::cerr << "Failed to send message" << std::endl;
-                    break;
-                }
-            }
-            std::cout << "> " << std::flush;
-        }
-
-        std::cout << "Connection closed." << std::endl;
     }
-};
+}

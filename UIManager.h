@@ -22,6 +22,7 @@ private:
 
     std::vector<std::string> messages;
     int max_messages;
+    std::string currentInputBuffer;
 
     void drawBorders();
 };

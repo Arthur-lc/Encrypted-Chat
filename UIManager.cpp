@@ -9,9 +9,8 @@ UIManager::UIManager() {
 
     // Basic settings
     cbreak();
-    noecho();
     keypad(stdscr, TRUE);
-    curs_set(1); // Show cursor
+    curs_set(1);
 
     // Create windows
     int height, width;
@@ -26,8 +25,8 @@ UIManager::UIManager() {
         throw std::runtime_error("Failed to create windows.");
     }
 
-    scrollok(message_window, TRUE); // Allow scrolling
-    keypad(input_window, TRUE); // Capture special keys in input window
+    scrollok(message_window, TRUE);
+    keypad(input_window, TRUE);
 
     max_messages = height - 3;
 
@@ -46,7 +45,6 @@ UIManager::~UIManager() {
 }
 
 void UIManager::drawBorders() {
-    // This is a simple way to draw a line, more complex borders can be done with box()
     mvwhline(status_window, 0, 0, ACS_HLINE, getmaxx(stdscr));
     wrefresh(status_window);
 }
@@ -73,6 +71,8 @@ void UIManager::drawMessage(const std::string& sender, const std::string& messag
         mvwprintw(message_window, i, 1, "%s", messages[start_index + i].c_str());
     }
     wrefresh(message_window);
+    wmove(input_window, 0, getcurx(input_window));
+    wrefresh(input_window);
 }
 
 std::string UIManager::getUserInput() {
