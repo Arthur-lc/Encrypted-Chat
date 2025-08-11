@@ -1,6 +1,8 @@
 #include "client.h"
 #include <cstring>
 
+const int MESSAGE_BUFFER_SIZE = 4096;
+
 Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), connected(false)
 {
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -87,7 +89,7 @@ void Client::run()
 
 void Client::receiveMessages()
 {
-    char buffer[4096];
+    char buffer[MESSAGE_BUFFER_SIZE];
     while (connected)
     {
         memset(buffer, 0, sizeof(buffer));
@@ -102,24 +104,42 @@ void Client::receiveMessages()
             }
             break;
         }
-        // Simple parsing of "sender:message"
-        std::string received(buffer);
-        size_t separator_pos = received.find(':');
-        if (separator_pos != std::string::npos)
-        {
-            std::string sender = received.substr(0, separator_pos);
-            std::string message = received.substr(separator_pos + 1);
-            uiManager.drawMessage(sender, message);
-        }
-        else
-        {
-            uiManager.drawMessage("Server", received);
-        }
+
+        // TODO: received pode conter mais de uma msg, precisamos implementar uma maneira de separar.
+        std::string received(buffer); 
+        handleMessage(received);        
+    }
+}
+
+void Client::handleMessage(const std::string& received)
+{
+    std::string sender;
+    std::string msg;
+
+    parseMessage(received, sender, msg);
+    
+    uiManager.drawMessage(sender, msg);
+}
+
+
+void Client::parseMessage(const std::string &msg, std::string &outSender, std::string &outMsg)
+{
+    size_t separator_pos = msg.find(':');
+    if (separator_pos != std::string::npos)
+    {
+        outSender = msg.substr(0, separator_pos);
+        outMsg = msg.substr(separator_pos + 1);
+    }
+    else
+    {
+        outMsg = msg;
+        outSender = "Server";
     }
 }
 
 void Client::sendMessage(const std::string& msg)
 {
+    uiManager.debugLog("oasdoas");
     if (!msg.empty())
     {
         uiManager.drawMessage("You", msg);

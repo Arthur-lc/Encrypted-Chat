@@ -15,6 +15,8 @@ public:
     void clearInput();
     void refreshAll();
 
+    void debugLog(const std::string& log); // use to debug
+
 private:
     WINDOW *status_window;
     WINDOW *message_window;

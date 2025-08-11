@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -Wall -I. -MMD -MP
+CXXFLAGS = -g -Wall -g -I. -MMD -MP
 LDFLAGS = -lncurses -ltinfo
 
 TARGET = client

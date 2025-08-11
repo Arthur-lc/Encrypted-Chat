@@ -12,6 +12,10 @@ UIManager::UIManager() {
     keypad(stdscr, TRUE);
     curs_set(1);
 
+    start_color(); // Inicia as cores
+    init_pair(1, COLOR_WHITE, COLOR_BLACK);
+    init_pair(2, COLOR_RED, COLOR_BLACK);
+
     // Create windows
     int height, width;
     getmaxyx(stdscr, height, width);
@@ -68,8 +72,17 @@ void UIManager::drawMessage(const std::string& sender, const std::string& messag
     }
 
     for (size_t i = 0; i < messages.size() && i < max_messages; ++i) {
+        bool isDebug = (messages[start_index + i].rfind("debug:", 0) == 0);
+        size_t pair = 1;
+        if (isDebug) {
+            pair = 2;
+        }
+
+        wattron(message_window, COLOR_PAIR(pair));
         mvwprintw(message_window, i, 1, "%s", messages[start_index + i].c_str());
+        wattroff(message_window, COLOR_PAIR(pair));
     }
+    
     wrefresh(message_window);
     wmove(input_window, 0, getcurx(input_window));
     wrefresh(input_window);
@@ -94,3 +107,10 @@ void UIManager::refreshAll() {
     wrefresh(message_window);
     wrefresh(input_window);
 }
+
+void UIManager::debugLog(const std::string &log)
+{
+    drawMessage("debug", log);
+}
+
+// criar a estrutura message com message, sender, color pqp ta uma macaronada isso aqui

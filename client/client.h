@@ -7,6 +7,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <regex>
+
 #include "UIManager.h"
 
 class Client
@@ -21,6 +23,8 @@ private:
 
     void receiveMessages();
     void sendMessage(const std::string& msg);
+    void handleMessage(const std::string& msg);
+    void parseMessage(const std::string& msg, std::string& outSender, std::string& outMsg);
 
 public:
     Client(const char *serverIp, int port, UIManager& uiManager);
