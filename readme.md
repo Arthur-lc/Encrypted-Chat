@@ -1,5 +1,15 @@
 # Chat Criptografado
 
+
+## Pré-requisitos
+
+Antes de compilar o projeto, certifique-se de ter as seguintes dependências instaladas:
+
+```sh
+sudo apt-get update
+sudo apt-get install build-essential libncurses5-dev libssl-dev
+```
+
 ## Como Compilar
 
 Para compilar o projeto, basta executar o comando `make` na raiz do diretório:

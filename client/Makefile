@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -g -Wall -g -I. -MMD -MP
-LDFLAGS = -lncurses -ltinfo
+LDFLAGS = -lncurses -ltinfo -lssl -lcrypto
 
 TARGET = client
 

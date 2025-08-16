@@ -65,9 +65,17 @@ private:
                     }
 
                     std::string message(buffer);
-                    std::string formattedMsg = clientNames[threadId] + ": " + message;
-                    std::cout << formattedMsg << std::endl;
-                    broadcastMessage(formattedMsg, clientSocket);
+                    
+                    // Verificar se é uma mensagem de troca de chaves
+                    if (message.substr(0, 4) == "KEY:") {
+                        std::cout << "Key exchange message from " << clientNames[threadId] << std::endl;
+                        // Repassar mensagem de troca de chaves para todos os outros clientes
+                        broadcastMessage(message, clientSocket);
+                    } else {
+                        std::string formattedMsg = clientNames[threadId] + ": " + message;
+                        std::cout << formattedMsg << std::endl;
+                        broadcastMessage(formattedMsg, clientSocket);
+                    }
                 }
             } else {
                 // If no client, sleep briefly to avoid busy-waiting

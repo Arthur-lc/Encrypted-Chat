@@ -3,7 +3,7 @@
 
 const int MESSAGE_BUFFER_SIZE = 4096;
 
-Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), connected(false)
+Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), connected(false), keysExchanged(false)
 {
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0)
@@ -66,7 +66,41 @@ bool Client::connectToServer()
 
     connected = true;
     uiManager.updateStatus("Connected as: " + userName);
+    
+    // Iniciar troca de chaves
+    exchangeKeys();
+    
     return true;
+}
+
+void Client::exchangeKeys()
+{
+    sendPublicKey();
+    uiManager.drawMessage("System", "Exchanging encryption keys...");
+}
+
+void Client::sendPublicKey()
+{
+    std::string publicKey = dh.getPublicKeyString();
+    if (!publicKey.empty()) {
+        std::string keyMsg = "KEY:" + userName + ":" + publicKey;
+        send(clientSocket, keyMsg.c_str(), keyMsg.length(), 0);
+    }
+}
+
+void Client::handleKeyExchange(const std::string& sender, const std::string& keyData)
+{
+    if (sender != userName) {
+        otherPublicKeys.push_back(keyData);
+        uiManager.drawMessage("System", "Received public key from " + sender);
+        
+        // Se temos pelo menos uma chave, estabelecer a chave de grupo
+        if (otherPublicKeys.size() >= 1 && !keysExchanged) {
+            dh.establishGroupKey(otherPublicKeys);
+            keysExchanged = true;
+            uiManager.drawMessage("System", "Group encryption key established!");
+        }
+    }
 }
 
 void Client::run()
@@ -118,9 +152,25 @@ void Client::handleMessage(const std::string& received)
 
     parseMessage(received, sender, msg);
     
-    uiManager.drawMessage(sender, msg);
+    // Verificar se é uma mensagem de troca de chaves
+    if (msg.substr(0, 4) == "KEY:") {
+        size_t firstColon = msg.find(':', 4);
+        if (firstColon != std::string::npos) {
+            std::string keySender = msg.substr(4, firstColon - 4);
+            std::string keyData = msg.substr(firstColon + 1);
+            handleKeyExchange(keySender, keyData);
+            return;
+        }
+    }
+    
+    // Decriptar mensagem se as chaves foram trocadas
+    if (keysExchanged && dh.isKeyEstablished()) {
+        std::string decrypted = dh.decryptMessage(msg);
+        uiManager.drawMessage(sender, decrypted);
+    } else {
+        uiManager.drawMessage(sender, msg);
+    }
 }
-
 
 void Client::parseMessage(const std::string &msg, std::string &outSender, std::string &outMsg)
 {
@@ -142,8 +192,15 @@ void Client::sendMessage(const std::string& msg)
     uiManager.debugLog("oasdoas");
     if (!msg.empty())
     {
+        std::string messageToSend = msg;
+        
+        // Criptografar mensagem se as chaves foram trocadas
+        if (keysExchanged && dh.isKeyEstablished()) {
+            messageToSend = dh.encryptMessage(msg);
+        }
+        
         uiManager.drawMessage("You", msg);
-        if (send(clientSocket, msg.c_str(), msg.size(), 0) < 0)
+        if (send(clientSocket, messageToSend.c_str(), messageToSend.length(), 0) < 0)
         {
             uiManager.drawMessage("System", "Failed to send message");
             connected = false;
