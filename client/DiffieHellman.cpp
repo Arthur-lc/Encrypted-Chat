@@ -55,20 +55,41 @@ std::string DiffieHellman::getPublicKeyString() const {
 void DiffieHellman::establishGroupKey(const std::vector<std::string>& otherPublicKeys) {
     if (otherPublicKeys.empty()) return;
     
-    // Para simplificar, vamos usar a primeira chave pública para estabelecer a chave de grupo
-    // Em uma implementação mais robusta, você poderia combinar múltiplas chaves
-    const std::string& firstKey = otherPublicKeys[0];
+    // Para implementação de grupo, vamos combinar todas as chaves públicas
+    // usando uma abordagem de hash combinado
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) return;
     
-    BIGNUM* otherPub = BN_new();
-    if (!otherPub) return;
-    
-    if (BN_hex2bn(&otherPub, firstKey.c_str()) != 1) {
-        BN_free(otherPub);
+    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) != 1) {
+        EVP_MD_CTX_free(ctx);
         return;
     }
     
-    computeSharedSecret(otherPub);
-    BN_free(otherPub);
+    // Adicionar nossa chave pública
+    std::string ourKey = getPublicKeyString();
+    if (!ourKey.empty()) {
+        EVP_DigestUpdate(ctx, ourKey.c_str(), ourKey.length());
+    }
+    
+    // Adicionar todas as outras chaves públicas
+    for (const auto& key : otherPublicKeys) {
+        if (!key.empty()) {
+            EVP_DigestUpdate(ctx, key.c_str(), key.length());
+        }
+    }
+    
+    // Gerar hash final como chave de grupo
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hashLen;
+    if (EVP_DigestFinal_ex(ctx, hash, &hashLen) != 1) {
+        EVP_MD_CTX_free(ctx);
+        return;
+    }
+    
+    EVP_MD_CTX_free(ctx);
+    
+    groupKey.assign(hash, hash + hashLen);
+    keyEstablished = true;
 }
 
 void DiffieHellman::computeSharedSecret(const BIGNUM* otherPublicKey) {

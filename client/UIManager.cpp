@@ -71,20 +71,41 @@ void UIManager::drawMessage(const std::string& sender, const std::string& messag
         start_index = messages.size() - max_messages;
     }
 
+    int current_line = 0;
     for (size_t i = 0; i < messages.size() && i < max_messages; ++i) {
-        bool isDebug = (messages[start_index + i].rfind("debug:", 0) == 0);
+        std::string msg_to_display = messages[start_index + i];
+        bool isDebug = (msg_to_display.rfind("debug:", 0) == 0);
         size_t pair = 1;
         if (isDebug) {
             pair = 2;
         }
 
         wattron(message_window, COLOR_PAIR(pair));
-        mvwprintw(message_window, i, 1, "%s", messages[start_index + i].c_str());
+        
+        // Lidar com mensagens longas que quebram em múltiplas linhas
+        int max_width = getmaxx(message_window) - 2; // -2 para margem
+        if (msg_to_display.length() <= max_width) {
+            // Mensagem cabe em uma linha
+            mvwprintw(message_window, current_line, 1, "%s", msg_to_display.c_str());
+            current_line++;
+        } else {
+            // Mensagem quebra em múltiplas linhas
+            size_t pos = 0;
+            while (pos < msg_to_display.length() && current_line < max_messages) {
+                std::string line = msg_to_display.substr(pos, max_width);
+                mvwprintw(message_window, current_line, 1, "%s", line.c_str());
+                current_line++;
+                pos += max_width;
+            }
+        }
+        
         wattroff(message_window, COLOR_PAIR(pair));
     }
     
     wrefresh(message_window);
-    wmove(input_window, 0, getcurx(input_window));
+    
+    // Restaurar o cursor na janela de input
+    wmove(input_window, 0, 0);
     wrefresh(input_window);
 }
 
@@ -112,5 +133,3 @@ void UIManager::debugLog(const std::string &log)
 {
     drawMessage("debug", log);
 }
-
-// criar a estrutura message com message, sender, color pqp ta uma macaronada isso aqui

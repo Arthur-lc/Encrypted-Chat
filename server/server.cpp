@@ -70,6 +70,7 @@ private:
                     if (message.substr(0, 4) == "KEY:") {
                         std::cout << "Key exchange message from " << clientNames[threadId] << std::endl;
                         // Repassar mensagem de troca de chaves para todos os outros clientes
+                        // mas não para o próprio remetente
                         broadcastMessage(message, clientSocket);
                     } else {
                         std::string formattedMsg = clientNames[threadId] + ": " + message;

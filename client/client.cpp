@@ -91,14 +91,25 @@ void Client::sendPublicKey()
 void Client::handleKeyExchange(const std::string& sender, const std::string& keyData)
 {
     if (sender != userName) {
-        otherPublicKeys.push_back(keyData);
-        uiManager.drawMessage("System", "Received public key from " + sender);
+        // Verificar se já temos essa chave para evitar duplicatas
+        bool keyExists = false;
+        for (const auto& existingKey : otherPublicKeys) {
+            if (existingKey == keyData) {
+                keyExists = true;
+                break;
+            }
+        }
         
-        // Se temos pelo menos uma chave, estabelecer a chave de grupo
-        if (otherPublicKeys.size() >= 1 && !keysExchanged) {
-            dh.establishGroupKey(otherPublicKeys);
-            keysExchanged = true;
-            uiManager.drawMessage("System", "Group encryption key established!");
+        if (!keyExists) {
+            otherPublicKeys.push_back(keyData);
+            uiManager.drawMessage("System", "Received public key from " + sender);
+            
+            // Se temos pelo menos uma chave, estabelecer a chave de grupo
+            if (otherPublicKeys.size() >= 1 && !keysExchanged) {
+                dh.establishGroupKey(otherPublicKeys);
+                keysExchanged = true;
+                uiManager.drawMessage("System", "Group encryption key established!");
+            }
         }
     }
 }
@@ -189,7 +200,6 @@ void Client::parseMessage(const std::string &msg, std::string &outSender, std::s
 
 void Client::sendMessage(const std::string& msg)
 {
-    uiManager.debugLog("oasdoas");
     if (!msg.empty())
     {
         std::string messageToSend = msg;
