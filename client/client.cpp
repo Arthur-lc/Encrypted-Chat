@@ -8,7 +8,7 @@ Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), c
     clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket < 0)
     {
-        uiManager.drawMessage("System", "Error creating socket");
+        uiManager.drawMessage("System", "Error creating socket", Color::Yellow);
         return;
     }
 
@@ -16,7 +16,7 @@ Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), c
     serverAddress.sin_port = htons(port);
     if (inet_pton(AF_INET, serverIp, &serverAddress.sin_addr) <= 0)
     {
-        uiManager.drawMessage("System", "Invalid address or address not supported");
+        uiManager.drawMessage("System", "Invalid address or address not supported", Color::Yellow);
         close(clientSocket);
         clientSocket = -1;
     }
@@ -50,7 +50,7 @@ bool Client::connectToServer()
 
     if (connect(clientSocket, (struct sockaddr *)&serverAddress, sizeof(serverAddress)) < 0)
     {
-        uiManager.drawMessage("System", "Connection Failed");
+        uiManager.drawMessage("System", "Connection Failed", Color::Yellow);
         return false;
     }
 
@@ -60,7 +60,7 @@ bool Client::connectToServer()
 
     if (send(clientSocket, userName.c_str(), userName.size(), 0) < 0)
     {
-        uiManager.drawMessage("System", "Failed to send user name");
+        uiManager.drawMessage("System", "Failed to send user name", Color::Yellow);
         return false;
     }
 
@@ -98,7 +98,7 @@ void Client::receiveMessages()
         {
             if (connected)
             {
-                uiManager.drawMessage("System", "Server disconnected");
+                uiManager.drawMessage("System", "Server disconnected", Color::Yellow);
                 connected = false;
                 uiManager.updateStatus("Disconnected. Press any key to exit.");
             }
@@ -114,38 +114,34 @@ void Client::receiveMessages()
 void Client::handleMessage(const std::string& received)
 {
     std::string sender;
-    std::string msg;
+    std::string message;
 
-    parseMessage(received, sender, msg);
-    
-    uiManager.drawMessage(sender, msg);
-}
-
-
-void Client::parseMessage(const std::string &msg, std::string &outSender, std::string &outMsg)
-{
-    size_t separator_pos = msg.find(':');
-    if (separator_pos != std::string::npos)
+    size_t separator_pos = received.find(':');
+    if (separator_pos != std::string::npos) // não encontrou ':'
     {
-        outSender = msg.substr(0, separator_pos);
-        outMsg = msg.substr(separator_pos + 1);
+        sender = received.substr(0, separator_pos);
+        message = received.substr(separator_pos + 1);
+
+        // desciptografar aqui
+        uiManager.debugLog("msg criptografada" + received);
+
+        uiManager.drawMessage(sender, message, Color::Gray);
     }
     else
     {
-        outMsg = msg;
-        outSender = "Server";
+        uiManager.drawMessage("Server", received, Color::Yellow);
     }
 }
 
+
 void Client::sendMessage(const std::string& msg)
 {
-    uiManager.debugLog("oasdoas");
     if (!msg.empty())
     {
-        uiManager.drawMessage("You", msg);
+        uiManager.drawMessage("You", msg, Color::Gray);
         if (send(clientSocket, msg.c_str(), msg.size(), 0) < 0)
         {
-            uiManager.drawMessage("System", "Failed to send message");
+            uiManager.drawMessage("System", "Failed to send message", Color::Yellow);
             connected = false;
         }
     }

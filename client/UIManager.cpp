@@ -8,13 +8,14 @@ UIManager::UIManager() {
     }
 
     // Basic settings
-    cbreak();
+    //cbreak();
     keypad(stdscr, TRUE);
-    curs_set(1);
+    //curs_set(1);
 
     start_color(); // Inicia as cores
     init_pair(1, COLOR_WHITE, COLOR_BLACK);
     init_pair(2, COLOR_RED, COLOR_BLACK);
+    init_pair(3, COLOR_YELLOW, COLOR_BLACK);
 
     // Create windows
     int height, width;
@@ -30,12 +31,10 @@ UIManager::UIManager() {
     }
 
     scrollok(message_window, TRUE);
+    scrollok(input_window, TRUE);
+
     keypad(input_window, TRUE);
 
-    max_messages = height - 3;
-
-    // Initial draw
-    drawBorders();
     updateStatus("Connecting...");
     refreshAll();
 }
@@ -48,40 +47,18 @@ UIManager::~UIManager() {
     endwin();
 }
 
-void UIManager::drawBorders() {
-    mvwhline(status_window, 0, 0, ACS_HLINE, getmaxx(stdscr));
-    wrefresh(status_window);
-}
-
 void UIManager::updateStatus(const std::string& status) {
     wclear(status_window);
     mvwprintw(status_window, 0, 1, "%s", status.c_str());
     wrefresh(status_window);
 }
 
-void UIManager::drawMessage(const std::string& sender, const std::string& message) {
-    // Add message to history
+void UIManager::drawMessage(const std::string& sender, const std::string& message, Color color) {
     std::string full_message = sender + ": " + message;
-    messages.push_back(full_message);
 
-    // Redraw all messages
-    wclear(message_window);
-    int start_index = 0;
-    if (messages.size() > max_messages) {
-        start_index = messages.size() - max_messages;
-    }
-
-    for (size_t i = 0; i < messages.size() && i < max_messages; ++i) {
-        bool isDebug = (messages[start_index + i].rfind("debug:", 0) == 0);
-        size_t pair = 1;
-        if (isDebug) {
-            pair = 2;
-        }
-
-        wattron(message_window, COLOR_PAIR(pair));
-        mvwprintw(message_window, i, 1, "%s", messages[start_index + i].c_str());
-        wattroff(message_window, COLOR_PAIR(pair));
-    }
+    wattron(message_window, COLOR_PAIR(static_cast<int>(color)));
+    wprintw(message_window, "%s\n", full_message.c_str());
+    wattroff(message_window, COLOR_PAIR(static_cast<int>(color)));
     
     wrefresh(message_window);
     wmove(input_window, 0, getcurx(input_window));
@@ -110,7 +87,7 @@ void UIManager::refreshAll() {
 
 void UIManager::debugLog(const std::string &log)
 {
-    drawMessage("debug", log);
+    drawMessage("debug", log, Color::Red);
 }
 
 // criar a estrutura message com message, sender, color pqp ta uma macaronada isso aqui

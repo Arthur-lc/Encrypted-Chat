@@ -4,12 +4,18 @@
 #include <vector>
 #include <ncurses.h>
 
+enum class Color {
+    Gray = 1,
+    Red = 2,
+    Yellow = 3
+};
+
 class UIManager {
 public:
     UIManager();
     ~UIManager();
 
-    void drawMessage(const std::string& sender, const std::string& message);
+    void drawMessage(const std::string& sender, const std::string& message, Color color);
     std::string getUserInput();
     void updateStatus(const std::string& status);
     void clearInput();
@@ -21,10 +27,6 @@ private:
     WINDOW *status_window;
     WINDOW *message_window;
     WINDOW *input_window;
-
-    std::vector<std::string> messages;
-    int max_messages;
-    std::string currentInputBuffer;
 
     void drawBorders();
 };
