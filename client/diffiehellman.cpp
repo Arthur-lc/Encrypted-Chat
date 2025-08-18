@@ -185,7 +185,7 @@ namespace CryptoUtils {
 // Represents the state that a real client application would maintain.
 // ============================================================================
 
-/* class Client {
+class Client {
 private:
     ull privateKey;
 
@@ -199,7 +199,7 @@ public:
     }
 
     ull getPrivateKey() const { return privateKey; }
-}; */
+};
 
 
 // ============================================================================
@@ -207,7 +207,7 @@ public:
 // The main function demonstrates how another team would use the CryptoUtils
 // namespace to implement the key exchange flow.
 // ============================================================================
-/* int main() {
+int main() {
     // --- 1. SETUP (Server-side) ---
     const int NUM_CLIENTS = 5;
     std::cout << "Initializing Group Key Exchange for " << NUM_CLIENTS << " clients." << std::endl;
@@ -268,6 +268,14 @@ public:
         std::cout << "FAILURE! Clients computed different shared secrets." << std::endl;
     }
 
+    // --- 5. MESSAGE ENCRYPTION/DECRYPTION ---
+    std::string message = "Hello, World!";
+    std::cout << "\n--- Message Encryption/Decryption ---" << std::endl;
+    std::cout << "Original Message: " << message << std::endl;
+    std::string encryptedMessage = CryptoUtils::encryptMessage(message, firstSecret);
+    std::cout << "Encrypted Message: " << encryptedMessage << std::endl;
+    std::string decryptedMessage = CryptoUtils::decryptMessage(encryptedMessage, firstSecret);
+    std::cout << "Decrypted Message: " << decryptedMessage << std::endl;
+
     return 0;
 }
- */
