@@ -159,8 +159,6 @@ namespace CryptoUtils {
         return encryptMessage(msg, key); // XOR é simétrico -> mesmo algoritmo para criptografar e descriptografar
     }
 
-    // Implementação de criptografia simétrica utilizando AES (Advanced Encryption Standard)
-
 } // namespace CryptoUtils
 
 
@@ -169,7 +167,7 @@ namespace CryptoUtils {
 // Represents the state that a real client application would maintain.
 // ============================================================================
 
-class Client {
+/* class Client {
 private:
     ull privateKey;
 
@@ -184,6 +182,7 @@ public:
 
     ull getPrivateKey() const { return privateKey; }
 };
+*/
 
 
 // ============================================================================
@@ -191,7 +190,7 @@ public:
 // The main function demonstrates how another team would use the CryptoUtils
 // namespace to implement the key exchange flow.
 // ============================================================================
-int main() {
+/* int main() {
     // --- 1. SETUP (Server-side) ---
     const int NUM_CLIENTS = 5;
     std::cout << "Initializing Group Key Exchange for " << NUM_CLIENTS << " clients." << std::endl;
@@ -262,4 +261,4 @@ int main() {
     std::cout << "Decrypted Message: " << decryptedMessage << std::endl;
 
     return 0;
-}
+} */
