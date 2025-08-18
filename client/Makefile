@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -Wall -g -I. -MMD -MP
+CXXFLAGS = -g -Wall -g -I. -I../include -MMD -MP
 LDFLAGS = -lncurses -ltinfo
 
 TARGET = client
@@ -16,6 +16,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
+	@echo " >> Client compiled successfully!"
 
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(@D)

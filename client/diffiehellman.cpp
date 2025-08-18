@@ -153,7 +153,8 @@ namespace CryptoUtils {
 // INTERNAL SIMULATION CLASS (Not part of the public API)
 // Represents the state that a real client application would maintain.
 // ============================================================================
-class Client {
+
+/* class Client {
 private:
     ull privateKey;
 
@@ -167,7 +168,7 @@ public:
     }
 
     ull getPrivateKey() const { return privateKey; }
-};
+}; */
 
 
 // ============================================================================
@@ -175,7 +176,7 @@ public:
 // The main function demonstrates how another team would use the CryptoUtils
 // namespace to implement the key exchange flow.
 // ============================================================================
-int main() {
+/* int main() {
     // --- 1. SETUP (Server-side) ---
     const int NUM_CLIENTS = 5;
     std::cout << "Initializing Group Key Exchange for " << NUM_CLIENTS << " clients." << std::endl;
@@ -238,3 +239,4 @@ int main() {
 
     return 0;
 }
+ */

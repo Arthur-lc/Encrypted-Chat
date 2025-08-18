@@ -20,6 +20,9 @@ Client::Client(const char *serverIp, int port, UIManager &ui) : uiManager(ui), c
         close(clientSocket);
         clientSocket = -1;
     }
+
+    privateKey = CryptoUtils::generatePrivateKey();
+    publicKey = CryptoUtils::generatePublicKey(privateKey);
 }
 
 Client::~Client()
@@ -43,6 +46,55 @@ void Client::stop()
     }
 }
 
+// send all bytes in 'data' reliably
+// returns true on success, false on error
+bool sendAll(int sockfd, const void* data, size_t len) {
+    const char* buf = static_cast<const char*>(data);
+    size_t totalSent = 0;
+
+    while (totalSent < len) {
+        ssize_t sent = send(sockfd, buf + totalSent, len - totalSent, 0);
+        if (sent <= 0) {
+            return false; // error or connection closed
+        }
+        totalSent += sent;
+    }
+
+    // send the delimiter '\n'
+    char delimiter = '\n';
+    if (send(sockfd, &delimiter, 1, 0) != 1) {
+        return false;
+    }
+
+    return true;
+}
+
+// Receives one full message terminated by '\n'
+// Returns false on error/connection closed
+bool recvAll(int sockfd, std::string &outMessage) {
+    static std::string buffer;  // persistent across calls (per socket)
+    char temp[1024];
+    outMessage.clear();
+
+    while (true) {
+        // Check if we already have a full line in the buffer
+        size_t pos = buffer.find('\n');
+        if (pos != std::string::npos) {
+            outMessage = buffer.substr(0, pos);  // extract message (without \n)
+            buffer.erase(0, pos + 1);            // remove processed part
+            return true;
+        }
+
+        // Need to read more data
+        ssize_t bytesReceived = recv(sockfd, temp, sizeof(temp), 0);
+        if (bytesReceived <= 0) {
+            return false; // error or connection closed
+        }
+
+        buffer.append(temp, bytesReceived);
+    }
+}
+
 bool Client::connectToServer()
 {
     if (clientSocket < 0)
@@ -55,17 +107,25 @@ bool Client::connectToServer()
     }
 
     uiManager.updateStatus("Enter your name: ");
-    userName = uiManager.getUserInput();
+    username = uiManager.getUserInput();
     uiManager.clearInput();
 
-    if (send(clientSocket, userName.c_str(), userName.size(), 0) < 0)
+    json j;
+    j["type"] = "C2S_AUTHENTICATE_AND_JOIN";
+    j["payload"]["username"] = username;
+    j["payload"]["publicKey"] = publicKey;
+
+    string jsonStr = j.dump();
+    uiManager.debugLog(jsonStr);
+
+    if (!sendAll(clientSocket, jsonStr.c_str(), jsonStr.size()))
     {
         uiManager.drawMessage("System", "Failed to send user name", Color::Yellow);
         return false;
     }
 
     connected = true;
-    uiManager.updateStatus("Connected as: " + userName);
+    uiManager.updateStatus("Connected as: " + username);
     return true;
 }
 
@@ -74,11 +134,11 @@ void Client::run()
     if (!connected)
         return;
 
-    receiverThread = std::thread(&Client::receiveMessages, this);
+    receiverThread = thread(&Client::receiveMessages, this);
 
     while (connected)
     {
-        std::string msg = uiManager.getUserInput();
+        string msg = uiManager.getUserInput();
         sendMessage(msg);
 
         if (!connected)
@@ -89,57 +149,77 @@ void Client::run()
 
 void Client::receiveMessages()
 {
-    char buffer[MESSAGE_BUFFER_SIZE];
+    string jsonStr;
     while (connected)
     {
-        memset(buffer, 0, sizeof(buffer));
-        int bytesReceived = recv(clientSocket, buffer, sizeof(buffer), 0);
-        if (bytesReceived <= 0)
+        if (!recvAll(clientSocket, jsonStr))
         {
-            if (connected)
-            {
-                uiManager.drawMessage("System", "Server disconnected", Color::Yellow);
-                connected = false;
-                uiManager.updateStatus("Disconnected. Press any key to exit.");
-            }
+            uiManager.drawMessage("System", "Server disconnected", Color::Yellow);
+            connected = false;
+            uiManager.updateStatus("Disconnected. Press any key to exit.");
+
             break;
         }
 
-        // TODO: received pode conter mais de uma msg, precisamos implementar uma maneira de separar.
-        std::string received(buffer); 
-        handleMessage(received);        
+        try {
+            json j = json::parse(jsonStr);
+            string type = j.at("type");
+
+            if (type == "S2C_BROADCAST_GROUP_MESSAGE") {
+                handleMessage(j);
+            }
+            else if (type == "S2C_USER_NOTIFICATION") {
+                handleUserNotification(j);
+            }
+            else {
+                uiManager.debugLog("Error while receivingMessage\n\tType: " + type + " not defined");
+            }
+        } catch (const std::exception& e) {
+            uiManager.drawMessage("Error while receivingMessage\n\tException:\n", e.what(), Color::Red);
+        }
+
     }
 }
 
-void Client::handleMessage(const std::string& received)
-{
-    std::string sender;
-    std::string message;
+void Client::handleMessage(const json& j) {
+    string sender = j.at("payload").at("sender");
+    string message = j.at("payload").at("ciphertext");
 
-    size_t separator_pos = received.find(':');
-    if (separator_pos != std::string::npos) // não encontrou ':'
-    {
-        sender = received.substr(0, separator_pos);
-        message = received.substr(separator_pos + 1);
-
-        // desciptografar aqui
-        uiManager.debugLog("msg criptografada" + received);
-
-        uiManager.drawMessage(sender, message, Color::Gray);
-    }
-    else
-    {
-        uiManager.drawMessage("Server", received, Color::Yellow);
-    }
+    uiManager.drawMessage(sender, message, Color::Gray);
 }
 
+void Client::handleUserNotification(const json& j) {
+    string eventName = j.at("payload").at("event");
 
-void Client::sendMessage(const std::string& msg)
+    if (eventName == "USER_JOINED") {
+        string username = j.at("payload").at("username");
+        string welcomeMsg = "'" + username + "' has joined!";
+        uiManager.drawMessage("system", welcomeMsg, Color::Yellow);
+    }
+    else if (eventName == "USER_DISCONNECTED") {
+        string username = j.at("payload").at("username");
+        string disconnectMsg = "'" + username + "' has left the chat.";
+        uiManager.drawMessage("system", disconnectMsg, Color::Yellow);
+    }
+    else {
+        uiManager.debugLog("Error while receivingMessage\n\tEvent: " + eventName + " not defined");
+    }
+
+}
+
+void Client::sendMessage(const string& msg)
 {
     if (!msg.empty())
     {
         uiManager.drawMessage("You", msg, Color::Gray);
-        if (send(clientSocket, msg.c_str(), msg.size(), 0) < 0)
+
+        json j;
+        j["type"] = "C2S_SEND_GROUP_MESSAGE";
+        j["payload"]["ciphertext"] = msg;
+
+        string jsonStr = j.dump();
+
+        if (!sendAll(clientSocket, jsonStr.c_str(), jsonStr.size()))
         {
             uiManager.drawMessage("System", "Failed to send message", Color::Yellow);
             connected = false;

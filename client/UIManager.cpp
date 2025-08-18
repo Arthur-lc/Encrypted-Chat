@@ -88,6 +88,30 @@ void UIManager::refreshAll() {
 void UIManager::debugLog(const std::string &log)
 {
     drawMessage("debug", log, Color::Red);
+
+    // Alguns erros fazem a ui fechar ai n da pra er os logs.
+    // use essa função pra escrever os logs em um arquivo
+    //writeDebugToFile(log);
 }
 
-// criar a estrutura message com message, sender, color pqp ta uma macaronada isso aqui
+void UIManager::writeDebugToFile(const std::string &log) {
+    std::string filename = "debugLog.txt";
+    if (std::filesystem::exists(filename)) {
+        int index = 1;
+        while (true) {
+            std::ostringstream ss;
+            ss << "debugLog" << index << ".txt";
+            if (!std::filesystem::exists(ss.str())) {
+                filename = ss.str();
+                break;
+            }
+            ++index;
+        }
+    }
+
+    // Append the log to the file
+    std::ofstream outFile(filename, std::ios::app);
+    if (outFile.is_open()) {
+        outFile << log << std::endl;
+    }
+}

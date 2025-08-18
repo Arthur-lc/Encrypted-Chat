@@ -10,21 +10,30 @@
 #include <regex>
 
 #include "UIManager.h"
+#include "diffiehellman.h"
+#include <nlohmann/json.hpp>
+
+using namespace std;
+using namespace nlohmann;
 
 class Client
 {
 private:
     int clientSocket;
     sockaddr_in serverAddress;
-    std::atomic<bool> connected;
-    std::thread receiverThread;
+    atomic<bool> connected;
+    thread receiverThread;
     UIManager& uiManager;
-    std::string userName;
+    string username;
+
+    ull privateKey;
+    ull publicKey;
 
     void receiveMessages();
-    void sendMessage(const std::string& msg);
-    void handleMessage(const std::string& msg);
-    void parseMessage(const std::string& msg, std::string& outSender, std::string& outMsg);
+    void sendMessage(const string& msg);
+    void handleMessage(const json& j);
+    void handleUserNotification(const json& j);
+    void parseMessage(const string& msg, string& outSender, string& outMsg);
 
 public:
     Client(const char *serverIp, int port, UIManager& uiManager);
