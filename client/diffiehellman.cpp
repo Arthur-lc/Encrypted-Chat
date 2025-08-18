@@ -148,13 +148,14 @@ namespace CryptoUtils {
 
     std::string encryptMessage(std::string msg, ull key) {
         std::string result = msg;
+        int k = key % 26;
         for(char& c : result){
             if(isalpha(c)){
                 if(islower(c)){
-                    c = 'a' + (c - 'a' + key) % 26;
+                    c = 'a' + (c - 'a' + k) % 26;
                 }
                 else{
-                    c = 'A' + (c - 'A' + key) % 26;
+                    c = 'A' + (c - 'A' + k) % 26;
                 }
             }
         }
@@ -163,12 +164,13 @@ namespace CryptoUtils {
 
     std::string decryptMessage(std::string msg, ull key) {
         std::string result = msg;
+        int k = key % 26;
         for (char& c : result) {
             if (isalpha(c)) {
                 if (islower(c)) {
-                    c = 'a' + ( (c - 'a' - key + 26) % 26 );
+                    c = 'a' + ( (c - 'a' - k + 26) % 26 );
                 } else {
-                    c = 'A' + ( (c - 'A' - key + 26) % 26 );
+                    c = 'A' + ( (c - 'A' - k + 26) % 26 );
                 }
             }
         }

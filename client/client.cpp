@@ -187,7 +187,7 @@ void Client::handleMessage(const json& j) {
     string sender = j.at("payload").at("sender");
     string message = j.at("payload").at("ciphertext");
 
-    string decryptedMessage = CryptoUtils::decryptMessage(message, publicKey);
+    string decryptedMessage = CryptoUtils::decryptMessage(message, 123);
 
     uiManager.drawMessage(sender, decryptedMessage, Color::Gray);
 }
@@ -217,7 +217,7 @@ void Client::sendMessage(const string& msg)
     {
         uiManager.drawMessage("You", msg, Color::Gray);
 
-        string encryptedMessage = CryptoUtils::encryptMessage(msg, privateKey);
+        string encryptedMessage = CryptoUtils::encryptMessage(msg, 123);
 
         json j;
         j["type"] = "C2S_SEND_GROUP_MESSAGE";
