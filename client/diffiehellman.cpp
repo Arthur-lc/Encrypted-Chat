@@ -146,6 +146,35 @@ namespace CryptoUtils {
         return final_key;
     }
 
+    std::string encryptMessage(std::string msg, ull key) {
+        std::string result = msg;
+        for(char& c : result){
+            if(isalpha(c)){
+                if(islower(c)){
+                    c = 'a' + (c - 'a' + key) % 26;
+                }
+                else{
+                    c = 'A' + (c - 'A' + key) % 26;
+                }
+            }
+        }
+        return result;
+    }
+
+    std::string decryptMessage(std::string msg, ull key) {
+        std::string result = msg;
+        for (char& c : result) {
+            if (isalpha(c)) {
+                if (islower(c)) {
+                    c = 'a' + ( (c - 'a' - key + 26) % 26 );
+                } else {
+                    c = 'A' + ( (c - 'A' - key + 26) % 26 );
+                }
+            }
+        }
+        return result;
+    }
+
 } // namespace CryptoUtils
 
 

@@ -1,5 +1,7 @@
 #include "client.h"
 #include <cstring>
+// TESTES e PREGUIÇA
+#include <cmath>
 
 const int MESSAGE_BUFFER_SIZE = 4096;
 
@@ -185,7 +187,9 @@ void Client::handleMessage(const json& j) {
     string sender = j.at("payload").at("sender");
     string message = j.at("payload").at("ciphertext");
 
-    uiManager.drawMessage(sender, message, Color::Gray);
+    string decryptedMessage = CryptoUtils::decryptMessage(message, publicKey);
+
+    uiManager.drawMessage(sender, decryptedMessage, Color::Gray);
 }
 
 void Client::handleUserNotification(const json& j) {
@@ -213,9 +217,11 @@ void Client::sendMessage(const string& msg)
     {
         uiManager.drawMessage("You", msg, Color::Gray);
 
+        string encryptedMessage = CryptoUtils::encryptMessage(msg, privateKey);
+
         json j;
         j["type"] = "C2S_SEND_GROUP_MESSAGE";
-        j["payload"]["ciphertext"] = msg;
+        j["payload"]["ciphertext"] = encryptedMessage;
 
         string jsonStr = j.dump();
 

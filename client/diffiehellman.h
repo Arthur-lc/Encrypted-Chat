@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -22,4 +23,6 @@ namespace CryptoUtils {
     ull calculateIntermediateValue(ull myPrivateKey, const GroupMember& before, const GroupMember& after);
     ull calculateSharedSecret(ull myPrivateKey, int myIndex, const std::vector<GroupMember>& orderedMembers, const std::vector<ull>& intermediateValues);
 
+    std::string encryptMessage(std::string msg, ull publicKey);
+    std::string decryptMessage(std::string msg, ull privateKey);
 }
