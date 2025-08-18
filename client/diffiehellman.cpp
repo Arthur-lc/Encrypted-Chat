@@ -146,6 +146,45 @@ namespace CryptoUtils {
         return final_key;
     }
 
+    // Funções para codificação segura de texto com base64
+    static const std::string base64_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/";
+    
+    std::string base64_encode(const std::string &in) {
+        std::string out;
+        int val = 0, valb = -6;
+        for (unsigned char c : in) {
+            val = (val << 8) + c;
+            valb += 8;
+            while (valb >= 0) {
+                out.push_back(base64_chars[(val >> valb) & 0x3F]);
+                valb -= 6;
+            }
+        }
+        if (valb > -6) out.push_back(base64_chars[((val << 8) >> (valb + 8)) & 0x3F]);
+        while (out.size() % 4) out.push_back('=');
+        return out;
+    }
+    std::string base64_decode(const std::string &in) {
+        std::vector<int> T(256, -1);
+        for (int i = 0; i < 64; i++) T[base64_chars[i]] = i;
+
+        std::string out;
+        int val = 0, valb = -8;
+        for (unsigned char c : in) {
+            if (T[c] == -1) break;
+            val = (val << 6) + T[c];
+            valb += 6;
+            if (valb >= 0) {
+                out.push_back(char((val >> valb) & 0xFF));
+                valb -= 8;
+            }
+        }
+        return out;
+    }
+
     // Utiliza XOR com rotação para variar a chave a cada caractere
     std::string encryptMessage(std::string msg, ull key) {
         std::string result = msg;
@@ -153,10 +192,16 @@ namespace CryptoUtils {
             unsigned char k = static_cast<unsigned char>((key >> (i % 8)) & 0xFF);
             result[i] ^= k;
         }
-        return result;
+        return base64_encode(result); // transformação em texto seguro
     }
+    // XOR é simétrico -> mesmo algoritmo para criptografar e descriptografar
     std::string decryptMessage(std::string msg, ull key) {
-        return encryptMessage(msg, key); // XOR é simétrico -> mesmo algoritmo para criptografar e descriptografar
+        std::string raw = base64_decode(msg);  // volta para bytes originais
+        for (size_t i = 0; i < raw.size(); i++) {
+            unsigned char k = static_cast<unsigned char>((key >> (i % 8)) & 0xFF);
+            raw[i] ^= k;
+        }
+        return raw;
     }
 
 } // namespace CryptoUtils
@@ -167,7 +212,7 @@ namespace CryptoUtils {
 // Represents the state that a real client application would maintain.
 // ============================================================================
 
-/* class Client {
+/*class Client {
 private:
     ull privateKey;
 
@@ -181,8 +226,8 @@ public:
     }
 
     ull getPrivateKey() const { return privateKey; }
-};
-*/
+};*/
+
 
 
 // ============================================================================
@@ -190,7 +235,7 @@ public:
 // The main function demonstrates how another team would use the CryptoUtils
 // namespace to implement the key exchange flow.
 // ============================================================================
-/* int main() {
+/*int main() {
     // --- 1. SETUP (Server-side) ---
     const int NUM_CLIENTS = 5;
     std::cout << "Initializing Group Key Exchange for " << NUM_CLIENTS << " clients." << std::endl;
