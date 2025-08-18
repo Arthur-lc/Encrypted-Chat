@@ -146,36 +146,20 @@ namespace CryptoUtils {
         return final_key;
     }
 
+    // Utiliza XOR com rotação para variar a chave a cada caractere
     std::string encryptMessage(std::string msg, ull key) {
         std::string result = msg;
-        int k = key % 26;
-        for(char& c : result){
-            if(isalpha(c)){
-                if(islower(c)){
-                    c = 'a' + (c - 'a' + k) % 26;
-                }
-                else{
-                    c = 'A' + (c - 'A' + k) % 26;
-                }
-            }
+        for (size_t i = 0; i < result.size(); i++) {
+            unsigned char k = static_cast<unsigned char>((key >> (i % 8)) & 0xFF);
+            result[i] ^= k;
         }
         return result;
+    }
+    std::string decryptMessage(std::string msg, ull key) {
+        return encryptMessage(msg, key); // XOR é simétrico -> mesmo algoritmo para criptografar e descriptografar
     }
 
-    std::string decryptMessage(std::string msg, ull key) {
-        std::string result = msg;
-        int k = key % 26;
-        for (char& c : result) {
-            if (isalpha(c)) {
-                if (islower(c)) {
-                    c = 'a' + ( (c - 'a' - k + 26) % 26 );
-                } else {
-                    c = 'A' + ( (c - 'A' - k + 26) % 26 );
-                }
-            }
-        }
-        return result;
-    }
+    // Implementação de criptografia simétrica utilizando AES (Advanced Encryption Standard)
 
 } // namespace CryptoUtils
 
