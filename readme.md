@@ -1,5 +1,8 @@
 # Chat Criptografado
 
+A comunicação é feita utilizando jsons.  
+Leia [**protocolo.md**](https://github.com/Arthur-lc/Encrypted-Chat/blob/cripto-bros/protocol.md) para entender como funciona o protocolo de comunicação.
+
 ## Como Compilar
 
 Para compilar o projeto, basta executar o comando `make` na raiz do diretório:
