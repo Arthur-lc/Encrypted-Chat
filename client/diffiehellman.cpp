@@ -8,6 +8,7 @@
 
 
 using ull = unsigned long long;
+using u128 = unsigned __int128;
 
 /**
  * @brief Fornece todas as utilidades criptográficas necessárias para o protocolo
@@ -19,7 +20,14 @@ namespace CryptoUtils {
     // 1. PUBLIC CONSTANTS AND DATA STRUCTURES
     // ========================================================================
 
-    const int P_MODULUS = 23;
+    /**
+     * O certo para o p seria usar numeros com no minimo 3072 bits d
+     * efinidos na REF3526 (https://www.rfc-editor.org/rfc/rfc3526#section-5)
+     * mas pra isso precisa usar BIGNUM que é meio complexo, se der tempo nois implementa
+     * por equanto estou usando 3786491543 que tem 32 bits. 32 porque precisa ser multiplicado 2 vezes
+     * que da 128 bits (__int128) que é o maximo suportado pelo Linux x86_64 e Windows x86_64 (with MinGW).
+     */
+    const ull P_MODULUS = 3786491543;
     const int G_GENERATOR = 5;
 
     /**
@@ -38,15 +46,19 @@ namespace CryptoUtils {
      * @brief Executa exponenciação modular (base^exponent) % modulus.
      * @return O resultado de (base^exponent) % modulus.
      */
-    ull modularExponent(ull base, ull exponent, int modulus) {
+    ull modularExponent(ull base, ull exponent, ull modulus) {
         ull result = 1;
         base %= modulus;
         while (exponent > 0) {
             if (exponent % 2 == 1) {
-                result = (result * base) % modulus;
+                // Usa __int128 para o produto intermediário para evitar overflow
+                // ao multiplicar dois números de 64 bits.
+                u128 temp_result = (u128)result * base;
+                result = temp_result % modulus;
             }
             exponent /= 2;
-            base = (base * base) % modulus;
+            u128 temp_base = (u128)base * base;
+            base = temp_base % modulus;
         }
         return result;
     }
@@ -58,7 +70,7 @@ namespace CryptoUtils {
      * @param mod O módulo.
      * @return O inverso modular.
      */
-    ull modInverse(int n, int mod) {
+    ull modInverse(ull n, ull mod) {
         return modularExponent(n, mod - 2, mod);
     }
     
@@ -66,22 +78,18 @@ namespace CryptoUtils {
      * @brief Gera uma chave privada aleatória criptograficamente segura.
      * @return Uma chave privada aleatória dentro do intervalo válido [2, P_MODULUS - 1].
      */
-    int generatePrivateKey() {
-        // Use the C++ standard library for cryptographically secure random number generation.
-        // std::random_device provides a non-deterministic source of randomness (if available).
+    ull generatePrivateKey() {
         static std::random_device rd;
-        
-        // Seed the Mersenne Twister engine. Use mt19937_64 for a 64-bit generator.
         static std::mt19937_64 generator(rd());
         
-        // Create a distribution that produces integers uniformly in the desired range [2, P_MODULUS - 1].
-        std::uniform_int_distribution<int> distribution(2, P_MODULUS - 1);
+        // A distribuição deve usar 'ull' para corresponder ao tipo de P_MODULUS.
+        std::uniform_int_distribution<ull> distribution(2, P_MODULUS - 1);
         
         return distribution(generator);
     }
 
 
-    ull generatePublicKey(int privateKey) {
+    ull generatePublicKey(ull privateKey) {
         return modularExponent(G_GENERATOR, privateKey, P_MODULUS);
     }
 
@@ -93,12 +101,15 @@ namespace CryptoUtils {
      * @param after O membro do grupo logicamente posterior a este cliente.
      * @return O valor intermediário 'X' calculado.
      */
-    ull calculateIntermediateValue(int myPrivateKey, const GroupMember& before, const GroupMember& after) {
+    ull calculateIntermediateValue(ull myPrivateKey, const GroupMember& before, const GroupMember& after) {
         ull z_after = after.publicKey;
         ull z_before = before.publicKey;
         ull z_before_inv = modInverse(z_before, P_MODULUS);
 
-        ull term = (z_after * z_before_inv) % P_MODULUS;
+        // O produto intermediário aqui pode exceder 64 bits, então usamos __int128.
+        u128 term_128 = (u128)z_after * z_before_inv;
+        ull term = term_128 % P_MODULUS;
+        
         return modularExponent(term, myPrivateKey, P_MODULUS);
     }
 
@@ -111,23 +122,25 @@ namespace CryptoUtils {
      * @param intermediateValues A lista completa de todos os valores 'X' de todos os membros.
      * @return O segredo compartilhado final 'K'.
      */
-    ull calculateSharedSecret(int myPrivateKey, int myIndex, const std::vector<GroupMember>& orderedMembers, const std::vector<ull>& intermediateValues) {
+    ull calculateSharedSecret(ull myPrivateKey, int myIndex, const std::vector<GroupMember>& orderedMembers, const std::vector<ull>& intermediateValues) {
         const size_t N = orderedMembers.size();
         if (N == 0) return 0;
 
         const GroupMember& before = orderedMembers[(myIndex - 1 + N) % N];
 
-        ull exponent_first_term = (ull)N * myPrivateKey;
+        // O expoente pode exceder 64 bits se N e privateKey forem grandes.
+        u128 exponent_first_term = (u128)N * myPrivateKey;
         ull final_key = modularExponent(before.publicKey, exponent_first_term, P_MODULUS);
 
         for (size_t j = 0; j < N - 1; ++j) {
             int x_index = (myIndex + j) % N;
             ull x_value = intermediateValues[x_index];
-            int exponent_for_x = N - 1 - j;
+            ull exponent_for_x = N - 1 - j;
             
             ull product_term = modularExponent(x_value, exponent_for_x, P_MODULUS);
 
-            final_key = (final_key * product_term) % P_MODULUS;
+            u128 temp_final_key = (u128)final_key * product_term;
+            final_key = temp_final_key % P_MODULUS;
         }
         
         return final_key;
@@ -142,20 +155,18 @@ namespace CryptoUtils {
 // ============================================================================
 class Client {
 private:
-    int privateKey;
+    ull privateKey;
 
 public:
     std::string id;
     ull publicKey;
 
     Client(std::string clientId) : id(clientId) {
-        // Generate a private key using the utility function.
         privateKey = CryptoUtils::generatePrivateKey();
-        // Generate the corresponding public key.
         publicKey = CryptoUtils::generatePublicKey(privateKey);
     }
 
-    int getPrivateKey() const { return privateKey; }
+    ull getPrivateKey() const { return privateKey; }
 };
 
 
@@ -165,23 +176,17 @@ public:
 // namespace to implement the key exchange flow.
 // ============================================================================
 int main() {
-    srand(time(0));
-
     // --- 1. SETUP (Server-side) ---
-    // The number of clients is defined for the simulation.
     const int NUM_CLIENTS = 5;
     std::cout << "Initializing Group Key Exchange for " << NUM_CLIENTS << " clients." << std::endl;
     std::cout << "Public Parameters: P=" << CryptoUtils::P_MODULUS 
               << ", G=" << CryptoUtils::G_GENERATOR << std::endl;
     
-    // The server simulates clients connecting and generates their state.
     std::vector<Client> clients;
     for (int i = 0; i < NUM_CLIENTS; ++i) {
         clients.emplace_back("user" + std::to_string(i));
     }
 
-    // The server creates the ordered list of public member data.
-    // This list would be broadcast to all clients.
     std::vector<CryptoUtils::GroupMember> orderedMembers;
     for (const auto& client : clients) {
         orderedMembers.push_back({client.id, client.publicKey});
@@ -198,10 +203,8 @@ int main() {
 
         ull x = CryptoUtils::calculateIntermediateValue(current_client.getPrivateKey(), before_member, after_member);
         intermediateValues.push_back(x);
-        std::cout << "Client '" << current_client.id << "' Pk:  " << current_client.getPrivateKey() << "\t calculated X = " << x << std::endl;
+        std::cout << "Client '" << current_client.id << "' calculated X = " << x << std::endl;
     }
-    // In a real app, clients would send their 'X' values to the server,
-    // and the server would broadcast the complete list.
 
 
     // --- 3. FINAL STEP: CALCULATE SHARED SECRET (Client-side simulation) ---
@@ -212,7 +215,7 @@ int main() {
         
         ull k = CryptoUtils::calculateSharedSecret(current_client.getPrivateKey(), i, orderedMembers, intermediateValues);
         finalSecrets.push_back(k);
-        std::cout << "Client '" << current_client.id << "' calculated K = " << k << std::endl;
+        std::cout << "Client '" << current_client.id << "' Pk: " << current_client.getPrivateKey() << "\t calculated K = " << k << std::endl;
     }
 
 
