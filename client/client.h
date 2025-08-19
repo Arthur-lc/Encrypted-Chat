@@ -29,11 +29,15 @@ private:
     ull privateKey;
     ull publicKey;
 
+    std::vector<CryptoUtils::GroupMember> groupMembers;
+    ull sharedSecret = 0;
+
     void receiveMessages();
     void sendMessage(const string& msg);
     void handleMessage(const json& j);
     void handleUserNotification(const json& j);
     void parseMessage(const string& msg, string& outSender, string& outMsg);
+
 
 public:
     Client(const char *serverIp, int port, UIManager& uiManager);

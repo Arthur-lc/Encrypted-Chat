@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <nlohmann/json.hpp>
+#include "server.h"
 
 using namespace std;
 using namespace nlohmann;
@@ -21,8 +22,10 @@ struct User {
     ull publicKey;
 };
 
+
+
 class Server {
-private:
+    private:
     int serverSocket;
     sockaddr_in serverAddress;
     vector<thread> workerThreads;
@@ -30,6 +33,7 @@ private:
     vector<string> clientNames;
     vector<User> users;
     atomic<bool> isRunning;
+    vector<GrupMember> groupMembers;
 
     // send all bytes in 'data' reliably
     // returns true on success, false on error
@@ -101,7 +105,9 @@ private:
             string type = j.at("type");
             string username = j.at("payload").at("username");
             ull publicKey = j.at("payload").at("publicKey").get<ull>();
-
+            
+            // Salva o membro
+            groupMembers.push_back({username, publicKey});
 
             users[threadId].username = username;
             users[threadId].publicKey = publicKey;
@@ -114,6 +120,7 @@ private:
 
             cout << "Client " << welcomeMsg.dump() << endl;
             broadcastMessage(welcomeMsg.dump(), clientSocket);
+            broadcastGroupMembersList();
         }
         catch(const std::exception& e)
         {
@@ -164,7 +171,9 @@ private:
                         string newJasonStr = newJ.dump();
 
                         cout << newJasonStr << endl;
+                        
                         broadcastMessage(newJasonStr, clientSocket);
+                        
                     }
                 }
             } else {
@@ -180,6 +189,20 @@ private:
             if (clientSocket != -1 && clientSocket != senderSocket) {
                 sendAll(clientSocket, message.c_str(), message.length());
             }
+        }
+    }
+    void broadcastGroupMembersList() {
+        nlohmann::json j;
+        j["type"] = "S2C_GROUP_MEMBERS_LIST";
+        for (const auto& member : groupMembers) {
+            nlohmann::json m;
+            m["username"] = member.username;
+            m["publicKey"] = member.publicKey;
+            j["payload"]["members"].push_back(m);
+        }
+        std::string msg = j.dump();
+        for (int clientSock : clientSockets) {
+            sendAll(clientSock, msg.c_str(), msg.size());
         }
     }
 

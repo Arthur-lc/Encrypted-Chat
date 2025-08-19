@@ -173,6 +173,39 @@ void Client::receiveMessages()
             else if (type == "S2C_USER_NOTIFICATION") {
                 handleUserNotification(j);
             }
+            else if (type == "S2C_GROUP_MEMBERS_LIST") {
+                groupMembers.clear();
+                auto members = j.at("payload").at("members");
+                for (const auto& m : members) {
+                    groupMembers.push_back({m.at("username"), m.at("publicKey")});
+                }
+                // Calcula o índice do usuário atual
+                int myIndex = 0;
+                for (size_t i = 0; i < groupMembers.size(); ++i) {
+                    if (groupMembers[i].id == username) {
+                        myIndex = i;
+                        break;
+                    }
+                }
+                // Calcula valores intermediários
+                std::vector<ull> intermediateValues;
+                for (size_t i = 0; i < groupMembers.size(); ++i) {
+                    const auto& before = groupMembers[(i - 1 + groupMembers.size()) % groupMembers.size()];
+                    const auto& after = groupMembers[(i + 1) % groupMembers.size()];
+                    ull x = 0;
+                    if (groupMembers[i].id == username) {
+                        x = CryptoUtils::calculateIntermediateValue(privateKey, before, after);
+                    } else {
+                        // Para outros membros, não calcula (ou pode receber do servidor se implementar)
+                        x = 0;
+                    }
+                    intermediateValues.push_back(x);
+                }
+                sharedSecret = CryptoUtils::calculateSharedSecret(
+                    privateKey, myIndex, groupMembers, intermediateValues
+                );
+                uiManager.drawMessage("System", "Group key established!", Color::Gray);
+            }
             else {
                 uiManager.debugLog("Error while receivingMessage\n\tType: " + type + " not defined");
             }
@@ -187,7 +220,7 @@ void Client::handleMessage(const json& j) {
     string sender = j.at("payload").at("sender");
     string message = j.at("payload").at("ciphertext");
 
-    string decryptedMessage = CryptoUtils::decryptMessage(message, 123);
+    string decryptedMessage = CryptoUtils::decryptMessage(message, sharedSecret);
 
     uiManager.drawMessage(sender, decryptedMessage, Color::Gray);
 }
@@ -217,7 +250,7 @@ void Client::sendMessage(const string& msg)
     {
         uiManager.drawMessage("You", msg, Color::Gray);
 
-        string encryptedMessage = CryptoUtils::encryptMessage(msg, 123);
+        string encryptedMessage = CryptoUtils::encryptMessage(msg, sharedSecret);
 
         json j;
         j["type"] = "C2S_SEND_GROUP_MESSAGE";
