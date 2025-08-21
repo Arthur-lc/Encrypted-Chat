@@ -1,5 +1,6 @@
 #include "client.h"
 #include <cstring>
+#include <map>
 // TESTES e PREGUIÇA
 #include <cmath>
 
@@ -74,9 +75,12 @@ bool sendAll(int sockfd, const void* data, size_t len) {
 // Receives one full message terminated by '\n'
 // Returns false on error/connection closed
 bool recvAll(int sockfd, std::string &outMessage) {
-    static std::string buffer;  // persistent across calls (per socket)
+    static std::map<int, std::string> buffers;  // buffer per socket
     char temp[1024];
     outMessage.clear();
+
+    // Get or create buffer for this socket
+    auto& buffer = buffers[sockfd];
 
     while (true) {
         // Check if we already have a full line in the buffer
@@ -90,6 +94,8 @@ bool recvAll(int sockfd, std::string &outMessage) {
         // Need to read more data
         ssize_t bytesReceived = recv(sockfd, temp, sizeof(temp), 0);
         if (bytesReceived <= 0) {
+            // Clean up buffer for this socket
+            buffers.erase(sockfd);
             return false; // error or connection closed
         }
 
@@ -164,7 +170,25 @@ void Client::receiveMessages()
         }
 
         try {
-            json j = json::parse(jsonStr);
+            if (jsonStr.empty()) {
+                uiManager.drawMessage("System", "Empty message received", Color::Yellow);
+                continue;
+            }
+            
+            json j;
+            try {
+                j = json::parse(jsonStr);
+            } catch (const json::parse_error& e) {
+                uiManager.drawMessage("System", "JSON parse error: " + string(e.what()), Color::Red);
+                uiManager.debugLog("Received string: '" + jsonStr + "'");
+                continue;
+            }
+            
+            if (!j.contains("type")) {
+                uiManager.drawMessage("System", "Message missing type field", Color::Yellow);
+                continue;
+            }
+            
             string type = j.at("type");
 
             if (type == "S2C_BROADCAST_GROUP_MESSAGE") {
@@ -179,7 +203,15 @@ void Client::receiveMessages()
                 for (const auto& m : members) {
                     groupMembers.push_back({m.at("username"), m.at("publicKey")});
                 }
-                // Calcula o índice do usuário atual
+                
+                // Aguarda comando do servidor para iniciar troca de chaves
+                uiManager.drawMessage("System", "Group members updated. Waiting for key exchange...", Color::Gray);
+            }
+            else if (type == "S2C_START_KEY_EXCHANGE_ROUND1") {
+                // Rodada 1: Calcula valor intermediário
+                uiManager.drawMessage("System", "Starting key exchange round 1...", Color::Gray);
+                
+                // Encontra índice do usuário atual
                 int myIndex = 0;
                 for (size_t i = 0; i < groupMembers.size(); ++i) {
                     if (groupMembers[i].id == username) {
@@ -187,24 +219,83 @@ void Client::receiveMessages()
                         break;
                     }
                 }
-                // Calcula valores intermediários
-                std::vector<ull> intermediateValues;
-                for (size_t i = 0; i < groupMembers.size(); ++i) {
-                    const auto& before = groupMembers[(i - 1 + groupMembers.size()) % groupMembers.size()];
-                    const auto& after = groupMembers[(i + 1) % groupMembers.size()];
-                    ull x = 0;
-                    if (groupMembers[i].id == username) {
-                        x = CryptoUtils::calculateIntermediateValue(privateKey, before, after);
-                    } else {
-                        // Para outros membros, não calcula (ou pode receber do servidor se implementar)
-                        x = 0;
-                    }
-                    intermediateValues.push_back(x);
+                
+                // Calcula valor intermediário
+                const auto& before = groupMembers[(myIndex - 1 + groupMembers.size()) % groupMembers.size()];
+                const auto& after = groupMembers[(myIndex + 1) % groupMembers.size()];
+                ull intermediateValue = CryptoUtils::calculateIntermediateValue(privateKey, before, after);
+                
+                // Envia valor intermediário para o servidor
+                json round1Msg;
+                round1Msg["type"] = "C2S_INTERMEDIATE_VALUE";
+                round1Msg["payload"]["intermediateValue"] = intermediateValue;
+                
+                string jsonStr = round1Msg.dump();
+                if (!sendAll(clientSocket, jsonStr.c_str(), jsonStr.size())) {
+                    uiManager.drawMessage("System", "Failed to send intermediate value", Color::Yellow);
+                } else {
+                    uiManager.drawMessage("System", "Intermediate value sent to server", Color::Gray);
                 }
+            }
+            else if (type == "S2C_START_KEY_EXCHANGE_ROUND2") {
+                // Rodada 2: Recebe todos os valores intermediários e calcula chave secreta
+                uiManager.drawMessage("System", "Starting key exchange round 2...", Color::Gray);
+                
+                // Encontra índice do usuário atual
+                int myIndex = 0;
+                for (size_t i = 0; i < groupMembers.size(); ++i) {
+                    if (groupMembers[i].id == username) {
+                        myIndex = i;
+                        break;
+                    }
+                }
+                
+                // Constrói lista de valores intermediários na ordem correta
+                std::vector<ull> intermediateValues(groupMembers.size(), 0);
+                auto intermediateData = j.at("payload").at("intermediateValues");
+                
+                for (const auto& data : intermediateData) {
+                    string memberUsername = data.at("username");
+                    ull memberValue = data.at("intermediateValue").get<ull>();
+                    
+                    // Encontra o índice correto deste membro
+                    for (size_t i = 0; i < groupMembers.size(); ++i) {
+                        if (groupMembers[i].id == memberUsername) {
+                            intermediateValues[i] = memberValue;
+                            break;
+                        }
+                    }
+                }
+                
+                // Calcula chave secreta compartilhada
                 sharedSecret = CryptoUtils::calculateSharedSecret(
                     privateKey, myIndex, groupMembers, intermediateValues
                 );
-                uiManager.drawMessage("System", "Group key established!", Color::Gray);
+                
+                uiManager.drawMessage("System", "Shared secret calculated: " + to_string(sharedSecret), Color::Gray);
+                
+                // Notifica servidor que completou rodada 2
+                json round2Msg;
+                round2Msg["type"] = "C2S_ROUND2_COMPLETED";
+                
+                string jsonStr = round2Msg.dump();
+                if (!sendAll(clientSocket, jsonStr.c_str(), jsonStr.size())) {
+                    uiManager.drawMessage("System", "Failed to notify round 2 completion", Color::Yellow);
+                }
+            }
+            else if (type == "S2C_KEY_EXCHANGE_COMPLETED") {
+                uiManager.drawMessage("System", "Group key exchange completed successfully!", Color::Gray);
+            }
+            else if (type == "S2C_INDIVIDUAL_KEY_RESET") {
+                // Gera nova chave individual quando usuário fica sozinho
+                string message = j.at("payload").at("message");
+                uiManager.drawMessage("System", message, Color::Yellow);
+                
+                // Gera nova chave secreta individual (mantém chaves privada/pública inalteradas)
+                sharedSecret = CryptoUtils::generatePrivateKey();
+                
+                uiManager.drawMessage("System", "New individual key generated: " + to_string(sharedSecret), Color::Gray);
+                uiManager.drawMessage("System", "Note: Messages will be encrypted with your new individual key", Color::Gray);
             }
             else {
                 uiManager.debugLog("Error while receivingMessage\n\tType: " + type + " not defined");
