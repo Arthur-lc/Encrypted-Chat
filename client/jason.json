@@ -1,0 +1,26 @@
+{
+    "type": "INITIATE_KEY_EXCHANGE",
+    "payload": {
+        "groupSize": 4,
+        "orderedMembers": [
+            {
+                "username": "Carol",
+                "publicKey": 19
+            },
+            {
+                "username": "Alice",
+                "publicKey": 17
+            },
+            {
+                "username": "Bob",
+                "publicKey": 10
+            },
+            {
+                "username": "David",
+                "publicKey": 21
+            }
+        ]
+    }
+}
+
+

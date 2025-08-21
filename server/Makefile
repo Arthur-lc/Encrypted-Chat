@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -g -Wall -I. -MMD -MP
+CXXFLAGS = -g -Wall -I. -I../include -MMD -MP
 LDFLAGS =
 
 TARGET = server
@@ -16,6 +16,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	$(CXX) -o $@ $^ $(LDFLAGS)
+	@echo " >> Server compiled successfully!"
 
 $(OBJDIR)/%.o: %.cpp
 	@mkdir -p $(@D)

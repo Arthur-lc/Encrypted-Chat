@@ -3,6 +3,9 @@
 #include <string>
 #include <vector>
 #include <ncurses.h>
+#include <fstream>
+#include <sstream>
+#include <filesystem>
 
 enum class Color {
     Gray = 1,
@@ -22,6 +25,7 @@ public:
     void refreshAll();
 
     void debugLog(const std::string& log); // use to debug
+    void writeDebugToFile(const std::string &log);
 
 private:
     WINDOW *status_window;
